@@ -1,0 +1,81 @@
+# FROM node:18-alpine
+# # Installing libvips-dev for sharp Compatibility
+# RUN apk update && apk add --no-cache build-base gcc autoconf automake zlib-dev libpng-dev nasm bash vips-dev
+# ARG NODE_ENV=development
+# ENV NODE_ENV=${NODE_ENV}
+
+# WORKDIR /opt/
+# COPY package.json package-lock.json ./
+# RUN npm config set fetch-retry-maxtimeout 600000 -g && npm install
+
+# WORKDIR /opt/app
+# COPY . .
+# ENV PATH /opt/node_modules/.bin:$PATH
+# RUN chown -R node:node /opt/app
+# USER node
+# RUN ["npm", "run", "build"]
+# EXPOSE 1337
+# CMD ["npm", "run", "develop"]
+
+# Stage 1: Build stage
+FROM node:18-alpine as build
+
+# Install necessary build dependencies
+RUN apk update && apk add --no-cache \
+    build-base \
+    gcc \
+    autoconf \
+    automake \
+    zlib-dev \
+    libpng-dev \
+    vips-dev
+
+# Set environment variables
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+
+# Set working directory and copy dependencies
+WORKDIR /opt/
+COPY package.json package-lock.json ./
+
+# Install production dependencies
+RUN npm config set fetch-retry-maxtimeout 600000 -g && npm install --only=production
+
+# Set PATH and copy app source code
+ENV PATH /opt/node_modules/.bin:$PATH
+WORKDIR /opt/app
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Production stage
+FROM node:18-alpine
+
+# Install runtime dependencies
+RUN apk add --no-cache vips-dev
+
+# Set environment variables
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+
+# Set working directory
+WORKDIR /opt/
+
+# Copy dependencies and app from the build stage
+COPY --from=build /opt/node_modules ./node_modules
+WORKDIR /opt/app
+COPY --from=build /opt/app ./
+
+# Set PATH and permissions
+ENV PATH /opt/node_modules/.bin:$PATH
+RUN chown -R node:node /opt/app
+
+# Switch to non-root user for security
+USER node
+
+# Expose application port
+EXPOSE 1337
+
+# Run the application
+CMD ["npm", "run", "start"]
