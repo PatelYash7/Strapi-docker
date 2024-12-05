@@ -17,6 +17,9 @@
 # EXPOSE 1337
 # CMD ["npm", "run", "develop"]
 
+
+
+# Production
 # Stage 1: Build stage
 FROM node:18-alpine as build
 
